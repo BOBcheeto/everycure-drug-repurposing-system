@@ -1,0 +1,240 @@
+# =============================================================================
+# A Tiny EveryCure-Style Drug Repurposing System
+# =============================================================================
+# EveryCure is a real project that uses AI and biological data to find new
+# uses for existing drugs. This script mimics that idea at a small scale.
+#
+# The core idea:
+#   If a drug affects a biological target (like a protein),
+#   and that same target is involved in a disease,
+#   then the drug MIGHT be useful for treating that disease too.
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# STEP 1: Define our drugs and what they already treat
+# -----------------------------------------------------------------------------
+# Each key is a drug name.
+# Each value is a list of diseases that drug is currently approved to treat.
+
+drug_approved_uses = {
+    "Metformin":    ["Type 2 Diabetes"],
+    "Ibuprofen":    ["Pain", "Inflammation", "Fever"],
+    "Rapamycin":    ["Organ Transplant Rejection"],
+    "Aspirin":      ["Pain", "Heart Attack Prevention"],
+    "Doxycycline":  ["Bacterial Infections", "Acne"],
+    # NEW DRUG: Atorvastatin is a statin -- a medication millions of people
+    # take to lower their cholesterol. We list what it is already approved for.
+    "Atorvastatin": ["High Cholesterol"],
+}
+
+
+# -----------------------------------------------------------------------------
+# STEP 2: Define the biological targets each drug affects
+# -----------------------------------------------------------------------------
+# A "biological target" is usually a protein or enzyme in the body.
+# Drugs work by interacting with these targets.
+#
+# Each key is a drug name.
+# Each value is a list of biological targets that drug is known to interact with.
+
+drug_targets = {
+    "Metformin":    ["AMPK", "mTOR", "Complex I"],
+    "Ibuprofen":    ["COX-1", "COX-2"],
+    "Rapamycin":    ["mTOR"],
+    "Aspirin":      ["COX-1", "COX-2", "NF-kB"],
+    "Doxycycline":  ["MMP-9", "NF-kB", "Bacterial Ribosomes"],
+    # NEW DRUG TARGETS: Atorvastatin blocks HMGCR (the enzyme your liver uses
+    # to make cholesterol -- blocking it lowers cholesterol levels).
+    # It also dials down NF-kB, which is an inflammation switch already in
+    # our system. So Atorvastatin connects to two targets, one old, one new.
+    "Atorvastatin": ["HMGCR", "NF-kB"],
+}
+
+
+# -----------------------------------------------------------------------------
+# STEP 3: Define diseases and the biological targets linked to them
+# -----------------------------------------------------------------------------
+# Scientists have studied which biological targets are involved in each disease.
+#
+# Each key is a disease name.
+# Each value is a list of biological targets connected to that disease.
+
+disease_targets = {
+    "Cancer":               ["mTOR", "NF-kB", "AMPK"],
+    "Alzheimer's Disease":  ["NF-kB", "MMP-9", "Complex I"],
+    "Arthritis":            ["COX-2", "NF-kB"],
+    "Type 2 Diabetes":      ["AMPK", "mTOR", "Complex I"],
+    "Heart Disease":        ["COX-1", "COX-2", "NF-kB"],
+    # NEW DISEASE: Parkinson's is a brain disease where nerve cells break down.
+    # Scientists have linked it to HMGCR (our new target) and Complex I
+    # (already in our system -- it is a protein inside mitochondria, the
+    # power plants of cells, which malfunction in Parkinson's patients).
+    "Parkinson's Disease":  ["HMGCR", "Complex I"],
+}
+
+
+# -----------------------------------------------------------------------------
+# STEP 4: The matching engine
+# -----------------------------------------------------------------------------
+# This function is the heart of the system.
+# It looks for cases where a drug and a disease share at least one target.
+# That overlap is a "hit" -- a possible repurposing opportunity.
+
+def find_repurposing_candidates(drug_targets, disease_targets, drug_approved_uses):
+    """
+    Compare each drug's targets against each disease's targets.
+    When they share a target, flag it as a potential match.
+
+    Returns a list of result dictionaries, one per drug-disease pair found.
+    """
+    candidates = []
+
+    # Loop through every drug we know about
+    for drug, targets_of_drug in drug_targets.items():
+
+        # Loop through every disease we know about
+        for disease, targets_of_disease in disease_targets.items():
+
+            # Check if this drug already treats this disease (skip if so)
+            already_approved = drug_approved_uses.get(drug, [])
+            if disease in already_approved:
+                continue  # Not a new discovery -- move on
+
+            # Find the shared targets between this drug and this disease
+            # set() lets us use intersection to find common items efficiently
+            shared = set(targets_of_drug) & set(targets_of_disease)
+
+            # If there is at least one shared target, it is a candidate
+            if shared:
+                candidates.append({
+                    "drug":           drug,
+                    "disease":        disease,
+                    "shared_targets": sorted(shared),  # sort for tidy display
+                    # CHANGE: score = number of shared targets.
+                    # More shared targets = stronger biological evidence.
+                    "score":          len(shared),
+                })
+
+    # CHANGE: sort all candidates by score, highest first.
+    # This puts the strongest matches at the top of the results.
+    candidates.sort(key=lambda c: c["score"], reverse=True)
+
+    return candidates
+
+
+# -----------------------------------------------------------------------------
+# STEP 5: Build a plain-English explanation for each candidate
+# -----------------------------------------------------------------------------
+# NEW FUNCTION: takes one candidate dictionary and returns a readable sentence.
+#
+# If there is only one shared target, the sentence names it directly.
+# If there are multiple shared targets, it lists all of them naturally.
+# This is just string formatting -- no new logic or data.
+
+def build_explanation(drug, disease, shared_targets):
+    """
+    Return a one-sentence explanation for why this match was found.
+
+    shared_targets is a list, e.g. ["AMPK", "mTOR"] or ["COX-2"].
+    """
+    if len(shared_targets) == 1:
+        # Single target: "...because both are connected to mTOR."
+        target_phrase = shared_targets[0]
+    else:
+        # Multiple targets: "...because both are connected to AMPK and mTOR."
+        # ", ".join(...) puts commas between all but the last pair.
+        all_but_last = ", ".join(shared_targets[:-1])
+        target_phrase = f"{all_but_last} and {shared_targets[-1]}"
+
+    return (
+        f"{drug} may help treat {disease} because "
+        f"both are connected to {target_phrase}."
+    )
+
+
+# -----------------------------------------------------------------------------
+# STEP 6: Run the matching engine
+# -----------------------------------------------------------------------------
+
+print("=" * 62)
+print("  Tiny EveryCure-Style Drug Repurposing System")
+print("=" * 62)
+print()
+print("Scanning for drug-disease matches via shared biological targets...")
+print()
+
+results = find_repurposing_candidates(drug_targets, disease_targets, drug_approved_uses)
+
+
+# -----------------------------------------------------------------------------
+# STEP 7: Display the results in a user-friendly format
+# -----------------------------------------------------------------------------
+# NEW: Each result block now shows:
+#   - The drug name
+#   - What it is already approved for (pulled from drug_approved_uses)
+#   - The new disease it may treat
+#   - Which biological targets are shared
+#   - A score (number of shared targets)
+#   - A plain-English explanation sentence
+
+if not results:
+    print("No repurposing candidates found.")
+else:
+    print(f"Found {len(results)} potential repurposing candidate(s):\n")
+
+    for i, candidate in enumerate(results, start=1):
+        drug    = candidate["drug"]
+        disease = candidate["disease"]
+        shared  = candidate["shared_targets"]   # this is a list
+        score   = candidate["score"]
+
+        # Look up what this drug is currently approved for.
+        # ", ".join(...) turns the list into a readable string.
+        current_uses = ", ".join(drug_approved_uses.get(drug, ["unknown"]))
+
+        # Turn the shared targets list into a readable string too.
+        shared_str = ", ".join(shared)
+
+        # Build the plain-English explanation using our new function.
+        explanation = build_explanation(drug, disease, shared)
+
+        # Score bar: one star per shared target, e.g. score 2 -> "**"
+        score_bar = "*" * score
+
+        print(f"Match #{i}")
+        print(f"  Drug:                  {drug}")
+        print(f"  Currently used for:    {current_uses}")
+        print(f"  May be repurposed for: {disease}")
+        print(f"  Shared target(s):      {shared_str}")
+        print(f"  Score:                 {score}  {score_bar}")
+        print(f"  Explanation:           {explanation}")
+        print()
+
+
+# -----------------------------------------------------------------------------
+# STEP 8: Show a summary table of what we already know (for reference)
+# -----------------------------------------------------------------------------
+
+print("=" * 62)
+print("  Reference: Known Drug Targets")
+print("=" * 62)
+for drug, targets in drug_targets.items():
+    print(f"  {drug:<15} -> {', '.join(targets)}")
+
+print()
+print("=" * 62)
+print("  Reference: Disease-Associated Targets")
+print("=" * 62)
+for disease, targets in disease_targets.items():
+    print(f"  {disease:<25} -> {', '.join(targets)}")
+
+print()
+print("=" * 62)
+print("  Reference: Current Approved Uses")
+print("=" * 62)
+for drug, uses in drug_approved_uses.items():
+    print(f"  {drug:<15} -> {', '.join(uses)}")
+
+print()
+print("Done.")
