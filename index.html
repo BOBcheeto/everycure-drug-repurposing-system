@@ -1,240 +1,696 @@
-# =============================================================================
-# A Tiny EveryCure-Style Drug Repurposing System
-# =============================================================================
-# EveryCure is a real project that uses AI and biological data to find new
-# uses for existing drugs. This script mimics that idea at a small scale.
-#
-# The core idea:
-#   If a drug affects a biological target (like a protein),
-#   and that same target is involved in a disease,
-#   then the drug MIGHT be useful for treating that disease too.
-# =============================================================================
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EveryCure-Style Drug Repurposing System</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream:   #f7f3ec;
+    --cream2:  #ede8df;
+    --ink:     #1c1a17;
+    --ink2:    #4a4640;
+    --teal:    #1a7f6e;
+    --teal-l:  #d0ece8;
+    --amber:   #c47c2b;
+    --amber-l: #faecd6;
+    --coral:   #c0473a;
+    --coral-l: #fde8e6;
+    --rule:    #d4cec5;
+  }
 
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-# -----------------------------------------------------------------------------
-# STEP 1: Define our drugs and what they already treat
-# -----------------------------------------------------------------------------
-# Each key is a drug name.
-# Each value is a list of diseases that drug is currently approved to treat.
+  body {
+    background: var(--cream);
+    color: var(--ink);
+    font-family: 'Lato', sans-serif;
+    font-weight: 300;
+    line-height: 1.75;
+    font-size: 17px;
+  }
 
-drug_approved_uses = {
-    "Metformin":    ["Type 2 Diabetes"],
-    "Ibuprofen":    ["Pain", "Inflammation", "Fever"],
-    "Rapamycin":    ["Organ Transplant Rejection"],
-    "Aspirin":      ["Pain", "Heart Attack Prevention"],
-    "Doxycycline":  ["Bacterial Infections", "Acne"],
-    # NEW DRUG: Atorvastatin is a statin -- a medication millions of people
-    # take to lower their cholesterol. We list what it is already approved for.
-    "Atorvastatin": ["High Cholesterol"],
-}
+  /* ── PAGE LOAD ANIMATION ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(22px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .reveal { opacity: 0; animation: fadeUp 0.65s ease forwards; }
+  .d1 { animation-delay: 0.05s; }
+  .d2 { animation-delay: 0.18s; }
+  .d3 { animation-delay: 0.32s; }
+  .d4 { animation-delay: 0.46s; }
+  .d5 { animation-delay: 0.60s; }
+  .d6 { animation-delay: 0.74s; }
 
+  /* ── HEADER ── */
+  header {
+    border-bottom: 1px solid var(--rule);
+    padding: 56px 0 48px;
+    text-align: center;
+    background: var(--cream);
+    position: relative;
+    overflow: hidden;
+  }
+  header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 39px,
+      var(--rule) 39px,
+      var(--rule) 40px
+    );
+    opacity: 0.35;
+    pointer-events: none;
+  }
+  .eyebrow {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--teal);
+    margin-bottom: 16px;
+  }
+  h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(2rem, 5vw, 3.4rem);
+    font-weight: 400;
+    line-height: 1.15;
+    color: var(--ink);
+    max-width: 680px;
+    margin: 0 auto 20px;
+  }
+  h1 em {
+    font-style: italic;
+    color: var(--teal);
+  }
+  .subtitle {
+    max-width: 560px;
+    margin: 0 auto;
+    color: var(--ink2);
+    font-size: 16px;
+    line-height: 1.8;
+  }
 
-# -----------------------------------------------------------------------------
-# STEP 2: Define the biological targets each drug affects
-# -----------------------------------------------------------------------------
-# A "biological target" is usually a protein or enzyme in the body.
-# Drugs work by interacting with these targets.
-#
-# Each key is a drug name.
-# Each value is a list of biological targets that drug is known to interact with.
+  /* ── LAYOUT ── */
+  .container { max-width: 860px; margin: 0 auto; padding: 0 28px; }
 
-drug_targets = {
-    "Metformin":    ["AMPK", "mTOR", "Complex I"],
-    "Ibuprofen":    ["COX-1", "COX-2"],
-    "Rapamycin":    ["mTOR"],
-    "Aspirin":      ["COX-1", "COX-2", "NF-kB"],
-    "Doxycycline":  ["MMP-9", "NF-kB", "Bacterial Ribosomes"],
-    # NEW DRUG TARGETS: Atorvastatin blocks HMGCR (the enzyme your liver uses
-    # to make cholesterol -- blocking it lowers cholesterol levels).
-    # It also dials down NF-kB, which is an inflammation switch already in
-    # our system. So Atorvastatin connects to two targets, one old, one new.
-    "Atorvastatin": ["HMGCR", "NF-kB"],
-}
+  section { padding: 64px 0; border-bottom: 1px solid var(--rule); }
+  section:last-child { border-bottom: none; }
 
+  h2 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.75rem;
+    font-weight: 400;
+    margin-bottom: 10px;
+    color: var(--ink);
+  }
+  .section-intro {
+    color: var(--ink2);
+    margin-bottom: 36px;
+    max-width: 600px;
+    font-size: 16px;
+  }
 
-# -----------------------------------------------------------------------------
-# STEP 3: Define diseases and the biological targets linked to them
-# -----------------------------------------------------------------------------
-# Scientists have studied which biological targets are involved in each disease.
-#
-# Each key is a disease name.
-# Each value is a list of biological targets connected to that disease.
+  /* ── HOW IT WORKS: STEPS ── */
+  .steps { display: grid; gap: 20px; }
 
-disease_targets = {
-    "Cancer":               ["mTOR", "NF-kB", "AMPK"],
-    "Alzheimer's Disease":  ["NF-kB", "MMP-9", "Complex I"],
-    "Arthritis":            ["COX-2", "NF-kB"],
-    "Type 2 Diabetes":      ["AMPK", "mTOR", "Complex I"],
-    "Heart Disease":        ["COX-1", "COX-2", "NF-kB"],
-    # NEW DISEASE: Parkinson's is a brain disease where nerve cells break down.
-    # Scientists have linked it to HMGCR (our new target) and Complex I
-    # (already in our system -- it is a protein inside mitochondria, the
-    # power plants of cells, which malfunction in Parkinson's patients).
-    "Parkinson's Disease":  ["HMGCR", "Complex I"],
-}
+  .step {
+    display: grid;
+    grid-template-columns: 44px 1fr;
+    gap: 20px;
+    align-items: start;
+    background: white;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    padding: 24px;
+    transition: box-shadow 0.2s, border-color 0.2s;
+  }
+  .step:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.06); border-color: var(--teal); }
 
+  .step-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--teal);
+    background: var(--teal-l);
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .step-body h3 {
+    font-family: 'Lato', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    margin-bottom: 6px;
+    color: var(--ink);
+    letter-spacing: 0.01em;
+  }
+  .step-body p { font-size: 15px; color: var(--ink2); line-height: 1.7; }
+  .step-body code {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    background: var(--cream2);
+    padding: 1px 6px;
+    border-radius: 4px;
+    color: var(--amber);
+  }
 
-# -----------------------------------------------------------------------------
-# STEP 4: The matching engine
-# -----------------------------------------------------------------------------
-# This function is the heart of the system.
-# It looks for cases where a drug and a disease share at least one target.
-# That overlap is a "hit" -- a possible repurposing opportunity.
+  /* ── MATCH CARDS ── */
+  .matches { display: grid; gap: 16px; }
 
-def find_repurposing_candidates(drug_targets, disease_targets, drug_approved_uses):
-    """
-    Compare each drug's targets against each disease's targets.
-    When they share a target, flag it as a potential match.
+  .match-card {
+    background: white;
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: box-shadow 0.2s, border-color 0.2s;
+  }
+  .match-card:hover { box-shadow: 0 6px 24px rgba(0,0,0,0.07); border-color: #aaa; }
 
-    Returns a list of result dictionaries, one per drug-disease pair found.
-    """
-    candidates = []
+  .match-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    background: var(--cream);
+    border-bottom: 1px solid var(--rule);
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .drug-name {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.1rem;
+    color: var(--ink);
+  }
+  .score-badge {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-weight: 500;
+  }
+  .score-3 { background: var(--teal-l);  color: var(--teal); }
+  .score-2 { background: var(--amber-l); color: var(--amber); }
+  .score-1 { background: var(--cream2);  color: var(--ink2); }
 
-    # Loop through every drug we know about
-    for drug, targets_of_drug in drug_targets.items():
+  .match-body { padding: 18px 20px; display: grid; gap: 10px; }
 
-        # Loop through every disease we know about
-        for disease, targets_of_disease in disease_targets.items():
+  .match-row {
+    display: grid;
+    grid-template-columns: 148px 1fr;
+    gap: 8px;
+    font-size: 14px;
+    align-items: baseline;
+  }
+  .match-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink2);
+    padding-top: 2px;
+  }
+  .match-value { color: var(--ink); }
 
-            # Check if this drug already treats this disease (skip if so)
-            already_approved = drug_approved_uses.get(drug, [])
-            if disease in already_approved:
-                continue  # Not a new discovery -- move on
+  .target-pill {
+    display: inline-block;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    background: var(--teal-l);
+    color: var(--teal);
+    padding: 2px 9px;
+    border-radius: 20px;
+    margin: 2px 3px 2px 0;
+    font-weight: 500;
+  }
 
-            # Find the shared targets between this drug and this disease
-            # set() lets us use intersection to find common items efficiently
-            shared = set(targets_of_drug) & set(targets_of_disease)
+  .explanation-row {
+    margin-top: 4px;
+    padding-top: 12px;
+    border-top: 1px solid var(--cream2);
+    font-size: 14px;
+    color: var(--ink2);
+    font-style: italic;
+    line-height: 1.65;
+    grid-column: 1 / -1;
+  }
 
-            # If there is at least one shared target, it is a candidate
-            if shared:
-                candidates.append({
-                    "drug":           drug,
-                    "disease":        disease,
-                    "shared_targets": sorted(shared),  # sort for tidy display
-                    # CHANGE: score = number of shared targets.
-                    # More shared targets = stronger biological evidence.
-                    "score":          len(shared),
-                })
+  /* ── DATA TABLES ── */
+  .data-grid { display: grid; gap: 24px; }
+  @media (min-width: 640px) { .data-grid { grid-template-columns: 1fr 1fr; } }
 
-    # CHANGE: sort all candidates by score, highest first.
-    # This puts the strongest matches at the top of the results.
-    candidates.sort(key=lambda c: c["score"], reverse=True)
+  .data-table {
+    background: white;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .data-table-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--teal);
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--cream);
+  }
+  .data-table-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--cream2);
+    gap: 12px;
+    font-size: 14px;
+  }
+  .data-table-row:last-child { border-bottom: none; }
+  .data-table-row:hover { background: var(--cream); }
+  .row-key { font-weight: 700; color: var(--ink); white-space: nowrap; }
+  .row-val { color: var(--ink2); text-align: right; font-size: 13px; }
 
-    return candidates
+  /* ── FOOTER ── */
+  footer {
+    text-align: center;
+    padding: 40px 28px;
+    font-size: 13px;
+    color: var(--ink2);
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.05em;
+    border-top: 1px solid var(--rule);
+  }
 
+  @media (max-width: 520px) {
+    .match-row { grid-template-columns: 1fr; gap: 2px; }
+    .match-label { margin-bottom: 2px; }
+  }
+</style>
+</head>
+<body>
 
-# -----------------------------------------------------------------------------
-# STEP 5: Build a plain-English explanation for each candidate
-# -----------------------------------------------------------------------------
-# NEW FUNCTION: takes one candidate dictionary and returns a readable sentence.
-#
-# If there is only one shared target, the sentence names it directly.
-# If there are multiple shared targets, it lists all of them naturally.
-# This is just string formatting -- no new logic or data.
+<!-- ══════════════════════════════════════════
+     HEADER
+══════════════════════════════════════════ -->
+<header>
+  <div class="container">
+    <p class="eyebrow reveal d1">Drug Repurposing Research Tool</p>
+    <h1 class="reveal d2">A <em>tiny</em> EveryCure&#8209;style system</h1>
+    <p class="subtitle reveal d3">
+      Old drugs, new possibilities. This system scans a small database of drugs,
+      diseases, and biological targets — and flags cases where a drug already in
+      use might treat a disease it was never prescribed for.
+    </p>
+  </div>
+</header>
 
-def build_explanation(drug, disease, shared_targets):
-    """
-    Return a one-sentence explanation for why this match was found.
+<!-- ══════════════════════════════════════════
+     HOW IT WORKS
+══════════════════════════════════════════ -->
+<section>
+  <div class="container">
+    <h2 class="reveal d3">How the system works</h2>
+    <p class="section-intro reveal d3">
+      The logic is simple: if a drug and a disease are both connected to the
+      same biological target (a protein or enzyme in the body), there may be a
+      medical reason to try that drug on that disease. The system finds these
+      hidden connections automatically.
+    </p>
+    <div class="steps reveal d4">
 
-    shared_targets is a list, e.g. ["AMPK", "mTOR"] or ["COX-2"].
-    """
-    if len(shared_targets) == 1:
-        # Single target: "...because both are connected to mTOR."
-        target_phrase = shared_targets[0]
-    else:
-        # Multiple targets: "...because both are connected to AMPK and mTOR."
-        # ", ".join(...) puts commas between all but the last pair.
-        all_but_last = ", ".join(shared_targets[:-1])
-        target_phrase = f"{all_but_last} and {shared_targets[-1]}"
+      <div class="step">
+        <div class="step-num">01</div>
+        <div class="step-body">
+          <h3>Store what we know about each drug</h3>
+          <p>Each drug is listed alongside its <strong>approved uses</strong> (what doctors currently prescribe it for) and its <strong>biological targets</strong> — the proteins or enzymes inside the body that the drug interacts with.</p>
+        </div>
+      </div>
 
-    return (
-        f"{drug} may help treat {disease} because "
-        f"both are connected to {target_phrase}."
-    )
+      <div class="step">
+        <div class="step-num">02</div>
+        <div class="step-body">
+          <h3>Store what we know about each disease</h3>
+          <p>Each disease is linked to a set of biological targets that scientists have found to be involved in causing or worsening it. For example, the protein <code>NF-kB</code> is linked to Cancer, Arthritis, Alzheimer's, and Heart Disease.</p>
+        </div>
+      </div>
 
+      <div class="step">
+        <div class="step-num">03</div>
+        <div class="step-body">
+          <h3>Find the overlaps</h3>
+          <p>The matching engine compares every drug against every disease. When they share at least one biological target, that pair becomes a <strong>candidate</strong>. The system uses a Python <code>set()</code> intersection — the same idea as a Venn diagram.</p>
+        </div>
+      </div>
 
-# -----------------------------------------------------------------------------
-# STEP 6: Run the matching engine
-# -----------------------------------------------------------------------------
+      <div class="step">
+        <div class="step-num">04</div>
+        <div class="step-body">
+          <h3>Score and rank the matches</h3>
+          <p>Each match gets a <strong>score</strong> equal to the number of shared targets. More overlap means stronger biological evidence. Results are sorted so the highest-scoring matches appear first.</p>
+        </div>
+      </div>
 
-print("=" * 62)
-print("  Tiny EveryCure-Style Drug Repurposing System")
-print("=" * 62)
-print()
-print("Scanning for drug-disease matches via shared biological targets...")
-print()
+    </div>
+  </div>
+</section>
 
-results = find_repurposing_candidates(drug_targets, disease_targets, drug_approved_uses)
+<!-- ══════════════════════════════════════════
+     EXAMPLE OUTPUT
+══════════════════════════════════════════ -->
+<section>
+  <div class="container">
+    <h2 class="reveal d4">Matches found — 20 candidates</h2>
+    <p class="section-intro reveal d4">
+      These are the drug-disease pairs the system identified. Each card shows the
+      drug, what it currently treats, the new disease it may help with, the shared
+      biological targets that connect them, and a plain-English explanation.
+    </p>
 
+    <div class="matches reveal d5">
 
-# -----------------------------------------------------------------------------
-# STEP 7: Display the results in a user-friendly format
-# -----------------------------------------------------------------------------
-# NEW: Each result block now shows:
-#   - The drug name
-#   - What it is already approved for (pulled from drug_approved_uses)
-#   - The new disease it may treat
-#   - Which biological targets are shared
-#   - A score (number of shared targets)
-#   - A plain-English explanation sentence
+      <!-- SCORE 3 -->
+      <div class="match-card">
+        <div class="match-header">
+          <span class="drug-name">Aspirin</span>
+          <span class="score-badge score-3">Score 3 — strong</span>
+        </div>
+        <div class="match-body">
+          <div class="match-row"><span class="match-label">Currently used for</span><span class="match-value">Pain, Heart Attack Prevention</span></div>
+          <div class="match-row"><span class="match-label">May help treat</span><span class="match-value">Heart Disease</span></div>
+          <div class="match-row"><span class="match-label">Shared targets</span><span class="match-value"><span class="target-pill">COX-1</span><span class="target-pill">COX-2</span><span class="target-pill">NF-kB</span></span></div>
+          <p class="explanation-row">Aspirin may help treat Heart Disease because both are connected to COX-1, COX-2 and NF-kB.</p>
+        </div>
+      </div>
 
-if not results:
-    print("No repurposing candidates found.")
-else:
-    print(f"Found {len(results)} potential repurposing candidate(s):\n")
+      <!-- SCORE 2 -->
+      <div class="match-card">
+        <div class="match-header">
+          <span class="drug-name">Metformin</span>
+          <span class="score-badge score-2">Score 2 — moderate</span>
+        </div>
+        <div class="match-body">
+          <div class="match-row"><span class="match-label">Currently used for</span><span class="match-value">Type 2 Diabetes</span></div>
+          <div class="match-row"><span class="match-label">May help treat</span><span class="match-value">Cancer</span></div>
+          <div class="match-row"><span class="match-label">Shared targets</span><span class="match-value"><span class="target-pill">AMPK</span><span class="target-pill">mTOR</span></span></div>
+          <p class="explanation-row">Metformin may help treat Cancer because both are connected to AMPK and mTOR.</p>
+        </div>
+      </div>
 
-    for i, candidate in enumerate(results, start=1):
-        drug    = candidate["drug"]
-        disease = candidate["disease"]
-        shared  = candidate["shared_targets"]   # this is a list
-        score   = candidate["score"]
+      <div class="match-card">
+        <div class="match-header">
+          <span class="drug-name">Ibuprofen</span>
+          <span class="score-badge score-2">Score 2 — moderate</span>
+        </div>
+        <div class="match-body">
+          <div class="match-row"><span class="match-label">Currently used for</span><span class="match-value">Pain, Inflammation, Fever</span></div>
+          <div class="match-row"><span class="match-label">May help treat</span><span class="match-value">Heart Disease</span></div>
+          <div class="match-row"><span class="match-label">Shared targets</span><span class="match-value"><span class="target-pill">COX-1</span><span class="target-pill">COX-2</span></span></div>
+          <p class="explanation-row">Ibuprofen may help treat Heart Disease because both are connected to COX-1 and COX-2.</p>
+        </div>
+      </div>
 
-        # Look up what this drug is currently approved for.
-        # ", ".join(...) turns the list into a readable string.
-        current_uses = ", ".join(drug_approved_uses.get(drug, ["unknown"]))
+      <div class="match-card">
+        <div class="match-header">
+          <span class="drug-name">Aspirin</span>
+          <span class="score-badge score-2">Score 2 — moderate</span>
+        </div>
+        <div class="match-body">
+          <div class="match-row"><span class="match-label">Currently used for</span><span class="match-value">Pain, Heart Attack Prevention</span></div>
+          <div class="match-row"><span class="match-label">May help treat</span><span class="match-value">Arthritis</span></div>
+          <div class="match-row"><span class="match-label">Shared targets</span><span class="match-value"><span class="target-pill">COX-2</span><span class="target-pill">NF-kB</span></span></div>
+          <p class="explanation-row">Aspirin may help treat Arthritis because both are connected to COX-2 and NF-kB.</p>
+        </div>
+      </div>
 
-        # Turn the shared targets list into a readable string too.
-        shared_str = ", ".join(shared)
+      <div class="match-card">
+        <div class="match-header">
+          <span class="drug-name">Doxycycline</span>
+          <span class="score-badge score-2">Score 2 — moderate</span>
+        </div>
+        <div class="match-body">
+          <div class="match-row"><span class="match-label">Currently used for</span><span class="match-value">Bacterial Infections, Acne</span></div>
+          <div class="match-row"><span class="match-label">May help treat</span><span class="match-value">Alzheimer's Disease</span></div>
+          <div class="match-row"><span class="match-label">Shared targets</span><span class="match-value"><span class="target-pill">MMP-9</span><span class="target-pill">NF-kB</span></span></div>
+          <p class="explanation-row">Doxycycline may help treat Alzheimer's Disease because both are connected to MMP-9 and NF-kB.</p>
+        </div>
+      </div>
 
-        # Build the plain-English explanation using our new function.
-        explanation = build_explanation(drug, disease, shared)
+      <!-- SCORE 1 -->
+      <div class="match-card">
+        <div class="match-header">
+          <span class="drug-name">Metformin</span>
+          <span class="score-badge score-1">Score 1</span>
+        </div>
+        <div class="match-body">
+          <div class="match-row"><span class="match-label">Currently used for</span><span class="match-value">Type 2 Diabetes</span></div>
+          <div class="match-row"><span class="match-label">May help treat</span><span class="match-value">Alzheimer's Disease</span></div>
+          <div class="match-row"><span class="match-label">Shared targets</span><span class="match-value"><span class="target-pill">Complex I</span></span></div>
+          <p class="explanation-row">Metformin may help treat Alzheimer's Disease because both are connected to Complex I.</p>
+        </div>
+      </div>
 
-        # Score bar: one star per shared target, e.g. score 2 -> "**"
-        score_bar = "*" * score
+      <div class="match-card">
+        <div class="match-header">
+          <span class="drug-name">Metformin</span>
+          <span class="score-badge score-1">Score 1</span>
+        </div>
+        <div class="match-body">
+          <div class="match-row"><span class="match-label">Currently used for</span><span class="match-value">Type 2 Diabetes</span></div>
+          <div class="match-row"><span class="match-label">May help treat</span><span class="match-value">Parkinson's Disease</span></div>
+          <div class="match-row"><span class="match-label">Shared targets</span><span class="match-value"><span class="target-pill">Complex I</span></span></div>
+          <p class="explanation-row">Metformin may help treat Parkinson's Disease because both are connected to Complex I.</p>
+        </div>
+      </div>
 
-        print(f"Match #{i}")
-        print(f"  Drug:                  {drug}")
-        print(f"  Currently used for:    {current_uses}")
-        print(f"  May be repurposed for: {disease}")
-        print(f"  Shared target(s):      {shared_str}")
-        print(f"  Score:                 {score}  {score_bar}")
-        print(f"  Explanation:           {explanation}")
-        print()
+      <div class="match-card">
+        <div class="match-header">
+          <span class="drug-name">Ibuprofen</span>
+          <span class="score-badge score-1">Score 1</span>
+        </div>
+        <div class="match-body">
+          <div class="match-row"><span class="match-label">Currently used for</span><span class="match-value">Pain, Inflammation, Fever</span></div>
+          <div class="match-row"><span class="match-label">May help treat</span><span class="match-value">Arthritis</span></div>
+          <div class="match-row"><span class="match-label">Shared targets</span><span class="match-value"><span class="target-pill">COX-2</span></span></div>
+          <p class="explanation-row">Ibuprofen may help treat Arthritis because both are connected to COX-2.</p>
+        </div>
+      </div>
 
+      <div class="match-card">
+        <div class="match-header">
+          <span class="drug-name">Rapamycin</span>
+          <span class="score-badge score-1">Score 1</span>
+        </div>
+        <div class="match-body">
+          <div class="match-row"><span class="match-label">Currently used for</span><span class="match-value">Organ Transplant Rejection</span></div>
+          <div class="match-row"><span class="match-label">May help treat</span><span class="match-value">Cancer</span></div>
+          <div class="match-row"><span class="match-label">Shared targets</span><span class="match-value"><span class="target-pill">mTOR</span></span></div>
+          <p class="explanation-row">Rapamycin may help treat Cancer because both are connected to mTOR.</p>
+        </div>
+      </div>
 
-# -----------------------------------------------------------------------------
-# STEP 8: Show a summary table of what we already know (for reference)
-# -----------------------------------------------------------------------------
+      <div class="match-card">
+        <div class="match-header">
+          <span class="drug-name">Rapamycin</span>
+          <span class="score-badge score-1">Score 1</span>
+        </div>
+        <div class="match-body">
+          <div class="match-row"><span class="match-label">Currently used for</span><span class="match-value">Organ Transplant Rejection</span></div>
+          <div class="match-row"><span class="match-label">May help treat</span><span class="match-value">Type 2 Diabetes</span></div>
+          <div class="match-row"><span class="match-label">Shared targets</span><span class="match-value"><span class="target-pill">mTOR</span></span></div>
+          <p class="explanation-row">Rapamycin may help treat Type 2 Diabetes because both are connected to mTOR.</p>
+        </div>
+      </div>
 
-print("=" * 62)
-print("  Reference: Known Drug Targets")
-print("=" * 62)
-for drug, targets in drug_targets.items():
-    print(f"  {drug:<15} -> {', '.join(targets)}")
+      <div class="match-card">
+        <div class="match-header">
+          <span class="drug-name">Aspirin</span>
+          <span class="score-badge score-1">Score 1</span>
+        </div>
+        <div class="match-body">
+          <div class="match-row"><span class="match-label">Currently used for</span><span class="match-value">Pain, Heart Attack Prevention</span></div>
+          <div class="match-row"><span class="match-label">May help treat</span><span class="match-value">Cancer</span></div>
+          <div class="match-row"><span class="match-label">Shared targets</span><span class="match-value"><span class="target-pill">NF-kB</span></span></div>
+          <p class="explanation-row">Aspirin may help treat Cancer because both are connected to NF-kB.</p>
+        </div>
+      </div>
 
-print()
-print("=" * 62)
-print("  Reference: Disease-Associated Targets")
-print("=" * 62)
-for disease, targets in disease_targets.items():
-    print(f"  {disease:<25} -> {', '.join(targets)}")
+      <div class="match-card">
+        <div class="match-header">
+          <span class="drug-name">Aspirin</span>
+          <span class="score-badge score-1">Score 1</span>
+        </div>
+        <div class="match-body">
+          <div class="match-row"><span class="match-label">Currently used for</span><span class="match-value">Pain, Heart Attack Prevention</span></div>
+          <div class="match-row"><span class="match-label">May help treat</span><span class="match-value">Alzheimer's Disease</span></div>
+          <div class="match-row"><span class="match-label">Shared targets</span><span class="match-value"><span class="target-pill">NF-kB</span></span></div>
+          <p class="explanation-row">Aspirin may help treat Alzheimer's Disease because both are connected to NF-kB.</p>
+        </div>
+      </div>
 
-print()
-print("=" * 62)
-print("  Reference: Current Approved Uses")
-print("=" * 62)
-for drug, uses in drug_approved_uses.items():
-    print(f"  {drug:<15} -> {', '.join(uses)}")
+      <div class="match-card">
+        <div class="match-header">
+          <span class="drug-name">Doxycycline</span>
+          <span class="score-badge score-1">Score 1</span>
+        </div>
+        <div class="match-body">
+          <div class="match-row"><span class="match-label">Currently used for</span><span class="match-value">Bacterial Infections, Acne</span></div>
+          <div class="match-row"><span class="match-label">May help treat</span><span class="match-value">Cancer</span></div>
+          <div class="match-row"><span class="match-label">Shared targets</span><span class="match-value"><span class="target-pill">NF-kB</span></span></div>
+          <p class="explanation-row">Doxycycline may help treat Cancer because both are connected to NF-kB.</p>
+        </div>
+      </div>
 
-print()
-print("Done.")
+      <div class="match-card">
+        <div class="match-header">
+          <span class="drug-name">Doxycycline</span>
+          <span class="score-badge score-1">Score 1</span>
+        </div>
+        <div class="match-body">
+          <div class="match-row"><span class="match-label">Currently used for</span><span class="match-value">Bacterial Infections, Acne</span></div>
+          <div class="match-row"><span class="match-label">May help treat</span><span class="match-value">Arthritis</span></div>
+          <div class="match-row"><span class="match-label">Shared targets</span><span class="match-value"><span class="target-pill">NF-kB</span></span></div>
+          <p class="explanation-row">Doxycycline may help treat Arthritis because both are connected to NF-kB.</p>
+        </div>
+      </div>
+
+      <div class="match-card">
+        <div class="match-header">
+          <span class="drug-name">Doxycycline</span>
+          <span class="score-badge score-1">Score 1</span>
+        </div>
+        <div class="match-body">
+          <div class="match-row"><span class="match-label">Currently used for</span><span class="match-value">Bacterial Infections, Acne</span></div>
+          <div class="match-row"><span class="match-label">May help treat</span><span class="match-value">Heart Disease</span></div>
+          <div class="match-row"><span class="match-label">Shared targets</span><span class="match-value"><span class="target-pill">NF-kB</span></span></div>
+          <p class="explanation-row">Doxycycline may help treat Heart Disease because both are connected to NF-kB.</p>
+        </div>
+      </div>
+
+      <div class="match-card">
+        <div class="match-header">
+          <span class="drug-name">Atorvastatin</span>
+          <span class="score-badge score-1">Score 1</span>
+        </div>
+        <div class="match-body">
+          <div class="match-row"><span class="match-label">Currently used for</span><span class="match-value">High Cholesterol</span></div>
+          <div class="match-row"><span class="match-label">May help treat</span><span class="match-value">Cancer</span></div>
+          <div class="match-row"><span class="match-label">Shared targets</span><span class="match-value"><span class="target-pill">NF-kB</span></span></div>
+          <p class="explanation-row">Atorvastatin may help treat Cancer because both are connected to NF-kB.</p>
+        </div>
+      </div>
+
+      <div class="match-card">
+        <div class="match-header">
+          <span class="drug-name">Atorvastatin</span>
+          <span class="score-badge score-1">Score 1</span>
+        </div>
+        <div class="match-body">
+          <div class="match-row"><span class="match-label">Currently used for</span><span class="match-value">High Cholesterol</span></div>
+          <div class="match-row"><span class="match-label">May help treat</span><span class="match-value">Alzheimer's Disease</span></div>
+          <div class="match-row"><span class="match-label">Shared targets</span><span class="match-value"><span class="target-pill">NF-kB</span></span></div>
+          <p class="explanation-row">Atorvastatin may help treat Alzheimer's Disease because both are connected to NF-kB.</p>
+        </div>
+      </div>
+
+      <div class="match-card">
+        <div class="match-header">
+          <span class="drug-name">Atorvastatin</span>
+          <span class="score-badge score-1">Score 1</span>
+        </div>
+        <div class="match-body">
+          <div class="match-row"><span class="match-label">Currently used for</span><span class="match-value">High Cholesterol</span></div>
+          <div class="match-row"><span class="match-label">May help treat</span><span class="match-value">Arthritis</span></div>
+          <div class="match-row"><span class="match-label">Shared targets</span><span class="match-value"><span class="target-pill">NF-kB</span></span></div>
+          <p class="explanation-row">Atorvastatin may help treat Arthritis because both are connected to NF-kB.</p>
+        </div>
+      </div>
+
+      <div class="match-card">
+        <div class="match-header">
+          <span class="drug-name">Atorvastatin</span>
+          <span class="score-badge score-1">Score 1</span>
+        </div>
+        <div class="match-body">
+          <div class="match-row"><span class="match-label">Currently used for</span><span class="match-value">High Cholesterol</span></div>
+          <div class="match-row"><span class="match-label">May help treat</span><span class="match-value">Heart Disease</span></div>
+          <div class="match-row"><span class="match-label">Shared targets</span><span class="match-value"><span class="target-pill">NF-kB</span></span></div>
+          <p class="explanation-row">Atorvastatin may help treat Heart Disease because both are connected to NF-kB.</p>
+        </div>
+      </div>
+
+      <div class="match-card">
+        <div class="match-header">
+          <span class="drug-name">Atorvastatin</span>
+          <span class="score-badge score-1">Score 1</span>
+        </div>
+        <div class="match-body">
+          <div class="match-row"><span class="match-label">Currently used for</span><span class="match-value">High Cholesterol</span></div>
+          <div class="match-row"><span class="match-label">May help treat</span><span class="match-value">Parkinson's Disease</span></div>
+          <div class="match-row"><span class="match-label">Shared targets</span><span class="match-value"><span class="target-pill">HMGCR</span></span></div>
+          <p class="explanation-row">Atorvastatin may help treat Parkinson's Disease because both are connected to HMGCR.</p>
+        </div>
+      </div>
+
+    </div><!-- /matches -->
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     REFERENCE DATA
+══════════════════════════════════════════ -->
+<section>
+  <div class="container">
+    <h2 class="reveal d5">Reference data</h2>
+    <p class="section-intro reveal d5">The three dictionaries that power the system. Every match above was found purely by comparing these lists.</p>
+
+    <div class="data-grid reveal d6">
+
+      <div class="data-table">
+        <div class="data-table-title">Drug targets</div>
+        <div class="data-table-row"><span class="row-key">Metformin</span><span class="row-val">AMPK, mTOR, Complex I</span></div>
+        <div class="data-table-row"><span class="row-key">Ibuprofen</span><span class="row-val">COX-1, COX-2</span></div>
+        <div class="data-table-row"><span class="row-key">Rapamycin</span><span class="row-val">mTOR</span></div>
+        <div class="data-table-row"><span class="row-key">Aspirin</span><span class="row-val">COX-1, COX-2, NF-kB</span></div>
+        <div class="data-table-row"><span class="row-key">Doxycycline</span><span class="row-val">MMP-9, NF-kB, Bacterial Ribosomes</span></div>
+        <div class="data-table-row"><span class="row-key">Atorvastatin</span><span class="row-val">HMGCR, NF-kB</span></div>
+      </div>
+
+      <div class="data-table">
+        <div class="data-table-title">Disease-linked targets</div>
+        <div class="data-table-row"><span class="row-key">Cancer</span><span class="row-val">mTOR, NF-kB, AMPK</span></div>
+        <div class="data-table-row"><span class="row-key">Alzheimer's</span><span class="row-val">NF-kB, MMP-9, Complex I</span></div>
+        <div class="data-table-row"><span class="row-key">Arthritis</span><span class="row-val">COX-2, NF-kB</span></div>
+        <div class="data-table-row"><span class="row-key">Type 2 Diabetes</span><span class="row-val">AMPK, mTOR, Complex I</span></div>
+        <div class="data-table-row"><span class="row-key">Heart Disease</span><span class="row-val">COX-1, COX-2, NF-kB</span></div>
+        <div class="data-table-row"><span class="row-key">Parkinson's</span><span class="row-val">HMGCR, Complex I</span></div>
+      </div>
+
+      <div class="data-table">
+        <div class="data-table-title">Approved uses</div>
+        <div class="data-table-row"><span class="row-key">Metformin</span><span class="row-val">Type 2 Diabetes</span></div>
+        <div class="data-table-row"><span class="row-key">Ibuprofen</span><span class="row-val">Pain, Inflammation, Fever</span></div>
+        <div class="data-table-row"><span class="row-key">Rapamycin</span><span class="row-val">Organ Transplant Rejection</span></div>
+        <div class="data-table-row"><span class="row-key">Aspirin</span><span class="row-val">Pain, Heart Attack Prevention</span></div>
+        <div class="data-table-row"><span class="row-key">Doxycycline</span><span class="row-val">Bacterial Infections, Acne</span></div>
+        <div class="data-table-row"><span class="row-key">Atorvastatin</span><span class="row-val">High Cholesterol</span></div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<footer>
+  Built with Python &amp; plain HTML &nbsp;·&nbsp; EveryCure-style educational project
+</footer>
+
+</body>
+</html>
